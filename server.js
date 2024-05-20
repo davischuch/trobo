@@ -5,9 +5,10 @@ const moment = require('moment');
 require('dotenv').config();
 
 const notion = new NotionClient({auth: process.env.NOTION_KEY});
+const art = "``` _           _       \n| |_ ___ ___| |_ ___ \n|  _|  _| . | . | . |\n|_| |_| |___|___|___|\n                 v0.2\n```"
 
 async function retrieveAll() {
-    const titles = ['As datas presentes no TROnograma são:'];
+    const titles = ['*As datas presentes no TROnograma são:*'];
     let dateCurr = moment().format().slice(0, 10);
     
     const data = await notion.databases.query({
@@ -33,7 +34,7 @@ async function retrieveAll() {
 }
 
 async function retrieveMonth() {
-    const titles = ['As datas do próximo mês são:'];
+    const titles = ['*As datas do próximo mês são:*'];
     
     const data = await notion.databases.query({
         database_id: process.env.NOTION_DATABASE_ID,
@@ -57,15 +58,41 @@ async function retrieveMonth() {
     return titles.toString();
 }
 
+async function createPage(title, date) {
+    await notion.pages.create({
+        parent: {
+            type: "database_id",
+            database_id: process.env.NOTION_DATABASE_ID
+        },
+        properties: {
+            "Name": {
+                title: [{
+                    text: {
+                        content: title
+                    }
+                }]
+            },
+            "Date": {
+                date: {
+                    start: moment(date, "DD-MM-YYYY").format().slice(0, 10)
+                }
+            }
+        }
+    })
+}
+
 async function main() {
-    const initialMsg = 
-`   
-📆 *TRÔbo* 🌪️
+    const initialMsg= `   
+📆 Seja bem vindo ao 🌪️
+${art}
 Digite o número correspondente para acessar uma função:
                             
-    1. Liste as datas dos próximos 30 dias
-    2. Liste todas as datas
+    *1*. Liste as datas dos próximos 30 dias
+    *2*. Liste todas as datas
+    *3*. Adicione datas
 `
+    let state = 'clear'
+    let title, date
 
     const client = new WWebClient({
         authStrategy: new LocalAuth(),
@@ -83,18 +110,48 @@ Digite o número correspondente para acessar uma função:
     client.initialize();
 
     client.on('message_create', async message => {
-        if (message.body === 'Tronograma') {
-            client.sendMessage(message.from, initialMsg);
-        }
-        if (message.body === '1') {
-            const response = await retrieveMonth();
-            const string = response.split(',').join(' ');
-            client.sendMessage(message.from, string);
-        }
-        if (message.body === '2') {
-            const response = await retrieveAll();
-            const string = response.split(',').join(' ');
-            client.sendMessage(message.from, string);
+        if (!message.fromMe) {
+            if (state == 'clear') {
+                if (message.body === 'Tronograma') {
+                    client.sendMessage(message.from, initialMsg);
+                }
+                if (message.body === '1') {
+                    const response = await retrieveMonth();
+                    const string = response.split(',').join(' ');
+                    client.sendMessage(message.from, `${art}\n${string}`);
+                }
+                if (message.body === '2') {
+                    const response = await retrieveAll();
+                    const string = response.split(',').join(' ');
+                    client.sendMessage(message.from, `${art}\n${string}`);
+                }
+                if (message.body === '3') {
+                    state = 'add title'
+                    client.sendMessage(message.from, `${art}\n*Digite o título do evento*`);
+                }
+            } else if (state == 'add title') {
+                title = message.body
+                client.sendMessage(message.from, `${art}\n*Digite a data do evento*\nFormato DD/MM (Ex.: 31/12)`);
+                state = 'add date'
+            } else if (state == 'add date') {
+                date = message.body
+                client.sendMessage(message.from, `${art}\n*Os dados estão corretos?*\n\nTítulo: ${title}\nData: ${date}\n\nSim (*s*) - Não (*n*)`);
+                state = 'date waiting response'
+            } else if (state == 'date waiting response') {
+                if (message.body == 's' || message.body == 'S') {
+                    if (!moment(date, "DD-MM-YYYY").isValid()) {
+                        client.sendMessage(message.from, `${art}\nFormato de data inválido\n*Processo encerrado!*`);
+                        state = 'clear'
+                    } else {
+                        await createPage(title, date)
+                        client.sendMessage(message.from, `${art}\n*Data adicionada com sucesso!*`);
+                        state = 'clear'
+                    }
+                } else if (message.body == 'n' || message.body == 'N') {
+                    client.sendMessage(message.from, `${art}\n*Processo cancelado!*`);
+                    state = 'clear'
+                }
+            }
         }
     });
 }

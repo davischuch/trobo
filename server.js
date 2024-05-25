@@ -92,6 +92,7 @@ Digite o número correspondente para acessar uma função:
     *3*. Adicione datas
 `
     let state = 'clear'
+    let active = 'no'
     let title, date
 
     const client = new WWebClient({
@@ -111,45 +112,55 @@ Digite o número correspondente para acessar uma função:
 
     client.on('message_create', async message => {
         if (!message.fromMe) {
-            if (state == 'clear') {
+            if (active == 'no') {
                 if (message.body === 'Tronograma') {
                     client.sendMessage(message.from, initialMsg);
+                    active = 'yes'
                 }
-                if (message.body === '1') {
-                    const response = await retrieveMonth();
-                    const string = response.split(',').join(' ');
-                    client.sendMessage(message.from, `${art}\n${string}`);
-                }
-                if (message.body === '2') {
-                    const response = await retrieveAll();
-                    const string = response.split(',').join(' ');
-                    client.sendMessage(message.from, `${art}\n${string}`);
-                }
-                if (message.body === '3') {
-                    state = 'add title'
-                    client.sendMessage(message.from, `${art}\n*Digite o título do evento*`);
-                }
-            } else if (state == 'add title') {
-                title = message.body
-                client.sendMessage(message.from, `${art}\n*Digite a data do evento*\nFormato DD/MM (Ex.: 31/12)`);
-                state = 'add date'
-            } else if (state == 'add date') {
-                date = message.body
-                client.sendMessage(message.from, `${art}\n*Os dados estão corretos?*\n\nTítulo: ${title}\nData: ${date}\n\nSim (*s*) - Não (*n*)`);
-                state = 'date waiting response'
-            } else if (state == 'date waiting response') {
-                if (message.body == 's' || message.body == 'S') {
-                    if (!moment(date, "DD-MM-YYYY").isValid()) {
-                        client.sendMessage(message.from, `${art}\nFormato de data inválido\n*Processo encerrado!*`);
-                        state = 'clear'
-                    } else {
-                        await createPage(title, date)
-                        client.sendMessage(message.from, `${art}\n*Data adicionada com sucesso!*`);
-                        state = 'clear'
+            }
+            if (active == 'yes') {
+                if (state == 'clear') {
+                    if (message.body === '1') {
+                        const response = await retrieveMonth();
+                        const string = response.split(',').join(' ');
+                        client.sendMessage(message.from, `${art}\n${string}`);
+                        active = 'no'
                     }
-                } else if (message.body == 'n' || message.body == 'N') {
-                    client.sendMessage(message.from, `${art}\n*Processo cancelado!*`);
-                    state = 'clear'
+                    if (message.body === '2') {
+                        const response = await retrieveAll();
+                        const string = response.split(',').join(' ');
+                        client.sendMessage(message.from, `${art}\n${string}`);
+                        active = 'no'
+                    }
+                    if (message.body === '3') {
+                        state = 'add title'
+                        client.sendMessage(message.from, `${art}\n*Digite o título do evento*`);
+                    }
+                } else if (state == 'add title') {
+                    title = message.body
+                    client.sendMessage(message.from, `${art}\n*Digite a data do evento*\nFormato DD/MM (Ex.: 31/12)`);
+                    state = 'add date'
+                } else if (state == 'add date') {
+                    date = message.body
+                    client.sendMessage(message.from, `${art}\n*Os dados estão corretos?*\n\nTítulo: ${title}\nData: ${date}\n\nSim (*s*) - Não (*n*)`);
+                    state = 'date waiting response'
+                } else if (state == 'date waiting response') {
+                    if (message.body == 's' || message.body == 'S') {
+                        if (!moment(date, "DD-MM-YYYY").isValid()) {
+                            client.sendMessage(message.from, `${art}\nFormato de data inválido\n*Processo encerrado!*`);
+                            state = 'clear'
+                            active = 'no'
+                        } else {
+                            await createPage(title, date)
+                            client.sendMessage(message.from, `${art}\n*Data adicionada com sucesso!*`);
+                            state = 'clear'
+                            active = 'no'
+                        }
+                    } else if (message.body == 'n' || message.body == 'N') {
+                        client.sendMessage(message.from, `${art}\n*Processo cancelado!*`);
+                        state = 'clear'
+                        active = 'no'
+                    }
                 }
             }
         }
